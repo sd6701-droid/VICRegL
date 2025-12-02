@@ -34,7 +34,7 @@ echo "CUDA available: $(python -c 'import torch; print(torch.cuda.is_available()
 echo "========================================"
 
 
-python -m torch.distributed.launch --nproc_per_node=8 main_vicregl.py \
+python main_vicregl.py \
   --data-dir /home/sd6701/datasets/fall2025_deeplearning/cc3m_96px_vicreg_final_exp \
   --exp-dir  /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_resnet50x2_viewmix \
   --arch resnet50x2 \
