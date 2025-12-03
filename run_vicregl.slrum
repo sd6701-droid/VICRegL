@@ -18,7 +18,7 @@ echo "Starting at: $(date)"
 echo "Model: VICRegL Convnext on cc3m_96px"
 echo "========================================"
 
-cd /home/sd6701/test/vicreg
+cd /home/sd6701/test/VICRegL
 
 # Load CUDA if your cluster uses modules (optional – adjust or remove if not needed)
 module load cuda/11.8 2>/dev/null || echo "cuda/11.8 module not loaded (maybe not needed)"
