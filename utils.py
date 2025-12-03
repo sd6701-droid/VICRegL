@@ -71,26 +71,61 @@ def off_diagonal(x):
 
 class FullGatherLayer(torch.autograd.Function):
     """
-    Gather tensors from all process and support backward propagation
+    Gather tensors from all processes and support backward propagation
     for the gradients across processes.
+
+    In single-process / non-distributed mode, this is a no-op passthrough.
     """
 
     @staticmethod
     def forward(ctx, x):
-        output = [torch.zeros_like(x) for _ in range(dist.get_world_size())]
+        # If we're not in distributed mode, just return x as a 1-tuple
+        if not (dist.is_available() and dist.is_initialized()):
+            ctx.world_size = 1
+            ctx.rank = 0
+            return (x,)
+
+        world_size = dist.get_world_size()
+        output = [torch.zeros_like(x) for _ in range(world_size)]
         dist.all_gather(output, x)
+        ctx.world_size = world_size
+        ctx.rank = dist.get_rank()
         return tuple(output)
 
     @staticmethod
     def backward(ctx, *grads):
+        # If we're not in distributed mode, just pass the gradient through
+        if not (dist.is_available() and dist.is_initialized()):
+            return grads[0]
+
         all_gradients = torch.stack(grads)
         dist.all_reduce(all_gradients)
-        return all_gradients[dist.get_rank()]
+        return all_gradients[ctx.rank]
 
 
-def batch_all_gather(x):
+def batch_all_gather(x: torch.Tensor) -> torch.Tensor:
+    """
+    Gather tensors across processes. On single GPU, just returns x.
+    """
+    if not (dist.is_available() and dist.is_initialized()):
+        return x
+
     x_list = FullGatherLayer.apply(x.contiguous())
     return torch.cat(x_list, dim=0)
+
+
+def gather_center(x: torch.Tensor) -> torch.Tensor:
+    """
+    Gather tensors (if distributed), then center them.
+    On single GPU, just centers the local batch.
+    """
+    x = batch_all_gather(x)
+    x = x - x.mean(dim=0, keepdim=True)
+    return x
+
+# def batch_all_gather(x):
+#     x_list = FullGatherLayer.apply(x.contiguous())
+#     return torch.cat(x_list, dim=0)
 
 
 def accuracy(output, target, topk=(1,)):
@@ -110,10 +145,10 @@ def accuracy(output, target, topk=(1,)):
         return res
 
 
-def gather_center(x):
-    x = batch_all_gather(x)
-    x = x - x.mean(dim=0)
-    return x
+# def gather_center(x):
+#     x = batch_all_gather(x)
+#     x = x - x.mean(dim=0)
+#     return x
 
 
 def MLP(mlp, embedding, norm_layer):
