@@ -96,7 +96,7 @@ def get_arguments():
                         help="wandb project name.")
     parser.add_argument("--wandb-entity", type=str, default="sd6701-new-york-university",
                         help="wandb entity (team/user).")
-    parser.add_argument("--wandb-run-name", type=str, default= "vicregl50x2-full_dataset",
+    parser.add_argument("--wandb-run-name", type=str, default= "vicreglConvnextSmall-full_dataset",
                         help="wandb run name; if None, wandb picks one.")
     parser.add_argument("--wandb-group", type=str, default=None,
                         help="Optional wandb group name for multi-run experiments.")
