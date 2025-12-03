@@ -449,46 +449,35 @@ class VICRegL(nn.Module):
         return inv_loss, var_loss, cov_loss
 
     def local_loss(self, maps_embedding, locations):
+        """
+        Simpler local VICReg loss:
+        - maps_embedding is a list of tensors, each (B, N, D)
+        - We compute VICReg loss between all pairs of views using patch embeddings
+          aligned by index (no nearest-neighbor / cdist / fancy indexing).
+        """
         num_views = len(maps_embedding)
         inv_loss = 0.0
         var_loss = 0.0
         cov_loss = 0.0
         iter_ = 0
-        for i in range(2):
-            for j in np.delete(np.arange(np.sum(num_views)), i):
-                inv_loss_this, var_loss_this, cov_loss_this = self._local_loss(
-                    maps_embedding[i], maps_embedding[j], locations[i], locations[j],
+
+        for i in range(num_views):
+            for j in range(i + 1, num_views):
+                inv, var, cov = self._vicreg_loss(
+                    maps_embedding[i], maps_embedding[j]
                 )
-                inv_loss = inv_loss + inv_loss_this
-                var_loss = var_loss + var_loss_this
-                cov_loss = cov_loss + cov_loss_this
+                inv_loss += inv
+                var_loss += var
+                cov_loss += cov
                 iter_ += 1
 
-        if self.args.fast_vc_reg:
-            inv_loss = self.args.inv_coeff * inv_loss / iter_
-            var_loss = 0.0
-            cov_loss = 0.0
-            iter_ = 0
-            for i in range(num_views):
-                x = utils.gather_center(maps_embedding[i])
-                std_x = torch.sqrt(x.var(dim=0) + 0.0001)
-                var_loss = var_loss + torch.mean(torch.relu(1.0 - std_x))
-                x = x.permute(1, 0, 2)
-                *_, sample_size, num_channels = x.shape
-                non_diag_mask = ~torch.eye(num_channels, device=x.device, dtype=torch.bool)
-                x = x - x.mean(dim=-2, keepdim=True)
-                cov_x = torch.einsum("...nc,...nd->...cd", x, x) / (sample_size - 1)
-                cov_loss = cov_x[..., non_diag_mask].pow(2).sum(-1) / num_channels
-                cov_loss = cov_loss + cov_loss.mean()
-                iter_ = iter_ + 1
-            var_loss = self.args.var_coeff * var_loss / iter_
-            cov_loss = self.args.cov_coeff * cov_loss / iter_
-        else:
-            inv_loss = inv_loss / iter_
-            var_loss = var_loss / iter_
-            cov_loss = cov_loss / iter_
+        if iter_ > 0:
+            inv_loss /= iter_
+            var_loss /= iter_
+            cov_loss /= iter_
 
         return inv_loss, var_loss, cov_loss
+
 
     def global_loss(self, embedding, maps=False):
         num_views = len(embedding)
