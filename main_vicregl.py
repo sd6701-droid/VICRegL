@@ -631,43 +631,39 @@ def batched_index_select(input, dim, index):
     index = index.expand(expanse)
     return torch.gather(input, dim, index)
 
-
 def neirest_neighbores(input_maps, candidate_maps, distances, num_matches):
-    batch_size = input_maps.size(0)
-    spatial_dim = input_maps.size(1)   # H * W
+    """
+    input_maps:      (B, N, C)
+    candidate_maps:  (B, N, C)
+    distances:       (B, N, N)  # d(query_loc, candidate_loc)
+    num_matches:     int or None
+    """
+    batch_size, N, _ = input_maps.shape
 
-    if num_matches is None or num_matches == -1 or num_matches > spatial_dim:
-        num_matches = spatial_dim
+    # Clamp num_matches to valid range
+    if num_matches is None or num_matches == -1 or num_matches > N:
+        num_matches = N
 
-    topk_values, topk_indices = distances.topk(k=1, largest=False)
-    topk_values = topk_values.squeeze(-1)
-    topk_indices = topk_indices.squeeze(-1)
+    # For each query location, find its nearest neighbor index in candidate_maps
+    # topk_values, topk_indices: (B, N, 1)
+    topk_values, topk_indices = distances.topk(k=1, largest=False, dim=-1)
+    topk_values = topk_values.squeeze(-1)   # (B, N)
+    topk_indices = topk_indices.squeeze(-1) # (B, N) indices in [0, N-1]
 
-    sorted_values, sorted_values_indices = torch.sort(topk_values, dim=1)
-    sorted_indices, sorted_indices_indices = torch.sort(sorted_values_indices, dim=1)
+    # Select the num_matches query locations with the smallest match distance
+    # values_sorted: (B, N) (not used), pos_sorted: (B, N) positions of queries
+    _, pos_sorted = topk_values.sort(dim=1)             # ascending
+    selected_pos = pos_sorted[:, :num_matches]          # (B, num_matches)
 
-    mask = torch.stack(
-        [
-            torch.where(sorted_indices_indices[i] < num_matches, True, False)
-            for i in range(batch_size)
-        ]
-    )
-    topk_indices_selected = topk_indices.masked_select(mask)
-    topk_indices_selected = topk_indices_selected.reshape(batch_size, num_matches)
+    # Indices into input_maps for the chosen queries
+    indices_selected = selected_pos                     # (B, num_matches)
 
-    indices = (
-        torch.arange(0, topk_values.size(1))
-        .unsqueeze(0)
-        .repeat(batch_size, 1)
-        .to(topk_values.device)
-    )
-    indices_selected = indices.masked_select(mask)
-    indices_selected = indices_selected.reshape(batch_size, num_matches)
+    # Indices into candidate_maps: nearest neighbor of each chosen query
+    neighbor_indices = torch.gather(topk_indices, 1, selected_pos)  # (B, num_matches)
 
+    # Use batched_index_select to gather the maps
     filtered_input_maps = batched_index_select(input_maps, 1, indices_selected)
-    filtered_candidate_maps = batched_index_select(
-        candidate_maps, 1, topk_indices_selected
-    )
+    filtered_candidate_maps = batched_index_select(candidate_maps, 1, neighbor_indices)
 
     return filtered_input_maps, filtered_candidate_maps
 
