@@ -25,6 +25,8 @@ from optimizers import build_optimizer
 from distributed import init_distributed_mode
 import wandb
 import utils
+import torch.distributed as dist
+
 
 
 def get_arguments():
@@ -227,8 +229,10 @@ def main(args):
                 optimizer.step()
 
             # logging
-            for v in logs.values():
-                torch.distributed.reduce(v.div_(args.world_size), 0)
+            if dist.is_available() and dist.is_initialized() and args.world_size > 1:
+                for v in logs.values():
+                    dist.reduce(v.div_(args.world_size), 0)
+
             current_time = time.time()
             if (
                 args.rank == 0
@@ -274,8 +278,10 @@ def evaluate(model, logs, val_loader, args, epoch, lr, stats_file, gpu):
                 loss, logs = model.forward(make_inputs(inputs, gpu), is_val=True)
 
         # logging
-        for v in logs.values():
-            torch.distributed.reduce(v.div_(args.world_size), 0)
+        if dist.is_available() and dist.is_initialized() and args.world_size > 1:
+            for v in logs.values():
+                dist.reduce(v.div_(args.world_size), 0)
+
         for key, value in logs.items():
             cumulative_logs[key] += value.item()
         iters += 1
