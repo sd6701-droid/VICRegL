@@ -23,6 +23,7 @@ from torch import nn
 from datasets import build_loader
 from optimizers import build_optimizer
 from distributed import init_distributed_mode
+import wandb
 import utils
 
 
@@ -86,6 +87,24 @@ def get_arguments():
     parser.add_argument("--num-workers", type=int, default=10)
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
+    
+    parser.add_argument("--use-wandb", action="store_true",
+                        help="Log training and validation metrics to Weights & Biases.")
+    parser.add_argument("--wandb-project", type=str, default="vicregl",
+                        help="wandb project name.")
+    parser.add_argument("--wandb-entity", type=str, default="sd6701-new-york-university",
+                        help="wandb entity (team/user).")
+    parser.add_argument("--wandb-run-name", type=str, default= "vicregl50x2-full_dataset",
+                        help="wandb run name; if None, wandb picks one.")
+    parser.add_argument("--wandb-group", type=str, default=None,
+                        help="Optional wandb group name for multi-run experiments.")
+    parser.add_argument(
+        "--wandb-api-key",
+        type=str,
+        default="14abcf8b33d9a7f066dd1988891a00fec55f4030",  # <-- RECOMMENDED: don't hardcode here
+        help="WandB API key (optional; better to set via env WANDB_API_KEY)",
+    )
+
 
     # Distributed
     parser.add_argument('--world-size', default=1, type=int,
@@ -105,6 +124,30 @@ def main(args):
     
     # Ensures that stats_file is initialized when calling evalaute(),
     # even if only the rank 0 process will use it
+
+    wandb_run = None
+    if getattr(args, "use_wandb", False):
+        if wandb is None:
+            if args.rank == 0:
+                print("WARNING: --use-wandb was set but wandb is not installed. "
+                      "Run `pip install wandb` to enable logging.")
+        elif args.rank == 0:
+            # Convert Path objects to strings for wandb config
+            wandb_config = {}
+            for k, v in vars(args).items():
+                if isinstance(v, Path):
+                    wandb_config[k] = str(v)
+                else:
+                    wandb_config[k] = v
+
+            wandb_run = wandb.init(
+                project=args.wandb_project,
+                entity=args.wandb_entity,
+                name=args.wandb_run_name,
+                group=args.wandb_group,
+                config=wandb_config,
+            )
+
     stats_file = None
     if args.rank == 0:
         args.exp_dir.mkdir(parents=True, exist_ok=True)
@@ -192,6 +235,10 @@ def main(args):
                 stats.update(logs)
                 print(json.dumps(stats))
                 print(json.dumps(stats), file=stats_file)
+                if wandb_run is not None:
+                    # wandb.log needs simple Python scalars
+                    wandb.log(stats, step=step)
+
                 last_logging = current_time
         utils.checkpoint(args, epoch + 1, step, model, optimizer)
 
@@ -199,6 +246,9 @@ def main(args):
         if (epoch + 1) % args.eval_freq == 0:
             if args.evaluate:
                 evaluate(model, logs, val_loader, args, epoch, lr, stats_file, gpu)
+
+        if wandb_run is not None and args.rank == 0:
+            wandb_run.finish()
 
 
 def evaluate(model, logs, val_loader, args, epoch, lr, stats_file, gpu):
@@ -230,6 +280,13 @@ def evaluate(model, logs, val_loader, args, epoch, lr, stats_file, gpu):
         stats.update(cumulative_logs)
         print("Val: ", json.dumps(stats))
         print("Val: ", json.dumps(stats), file=stats_file)
+
+        if getattr(args, "use_wandb", False) and wandb is not None and wandb.run is not None:
+                # prefix val metrics for clarity
+                wandb_stats = {f"val/{k}": v for k, v in cumulative_logs.items()}
+                wandb_stats["epoch"] = epoch
+                wandb_stats["lr"] = lr
+                wandb.log(wandb_stats, step=epoch)
 
 
 def make_inputs(inputs, gpu):
