@@ -1,10 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-
+#
 # All rights reserved.
-
+#
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-
 
 import os
 from PIL import Image
@@ -48,6 +47,49 @@ class ImageNetNumpyDataset(Dataset):
         return len(self.samples)
 
 
+class SingleFolderDataset(Dataset):
+    """
+    Dataset for the case where *all* images are in a single folder
+    (no class subdirectories). We assign a dummy label 0 to every image,
+    so num_classes = 1.
+
+    This works fine for VICRegL's self-supervised loss; the online
+    classifier just becomes a 1-class dummy head.
+    """
+
+    IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
+
+    def __init__(self, root, transform=None):
+        self.root = root
+        self.transform = transform
+
+        samples = []
+        for fname in sorted(os.listdir(root)):
+            path = os.path.join(root, fname)
+            if os.path.isfile(path) and fname.lower().endswith(self.IMG_EXTENSIONS):
+                samples.append(path)
+
+        if len(samples) == 0:
+            raise RuntimeError(f"Found 0 images in folder: {root}")
+
+        self.samples = samples
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        path = self.samples[index]
+        with open(path, "rb") as f:
+            img = Image.open(f).convert("RGB")
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        # Dummy label: 0
+        target = 0
+        return img, target
+
+
 def build_loader(args, is_train=True):
     dataset = build_dataset(args, is_train)
 
@@ -70,6 +112,7 @@ def build_loader(args, is_train=True):
 def build_dataset(args, is_train=True):
     transform = build_transform(args, is_train=is_train)
 
+    # 1) Built-in ImageNet mode (original behavior)
     if args.dataset == "imagenet1k":
         args.num_classes = 1000
 
@@ -84,10 +127,24 @@ def build_dataset(args, is_train=True):
         else:
             root = IMAGENET_PATH
             prefix = "train" if is_train else "val"
-            path = os.path.join(root, "train")
+            path = os.path.join(root, prefix)
             dataset = datasets.ImageFolder(path, transform)
 
-    return dataset
+        return dataset
+
+    # 2) Treat args.dataset as a PATH to a folder containing all images
+    if os.path.isdir(args.dataset):
+        # Single-folder dataset, all images share label 0
+        args.num_classes = 1
+        path = args.dataset  # same folder for train / val unless you change the arg
+        dataset = SingleFolderDataset(path, transform=transform)
+        return dataset
+
+    # 3) If we get here, the dataset specifier is unknown
+    raise ValueError(
+        f"Unknown dataset specifier: {args.dataset}. "
+        f"Expected 'imagenet1k' or a path to a folder of images."
+    )
 
 
 def build_transform(args, is_train=True):
