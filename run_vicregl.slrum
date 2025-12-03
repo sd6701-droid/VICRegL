@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=vicreg-r101-96
+#SBATCH --job-name=vicregl-r50x2-96
 #SBATCH --output=/home/sd6701/fall2025_deeplearning/logs/vicregl_r101-%j.out
 #SBATCH --error=/home/sd6701/fall2025_deeplearning/logs/vicregl_r101-%j.err
 #SBATCH --nodes=1
@@ -18,7 +18,6 @@ echo "Starting at: $(date)"
 echo "Model: VICRegL Convnext on cc3m_96px"
 echo "========================================"
 
-cd /home/sd6701/test/VICRegL
 
 # Load CUDA if your cluster uses modules (optional – adjust or remove if not needed)
 module load cuda/11.8 2>/dev/null || echo "cuda/11.8 module not loaded (maybe not needed)"
@@ -34,9 +33,11 @@ echo "CUDA available: $(python -c 'import torch; print(torch.cuda.is_available()
 echo "========================================"
 
 
+cd /home/sd6701/test/VICRegL
+
 python main_vicregl.py \
-  --dataset/home/sd6701/datasets/fall2025_deeplearning/cc3m_96px/train \
-  --exp-dir  /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_resnet50x2_viewmix \
+  --dataset /home/sd6701/datasets/fall2025_deeplearning/cc3m_96px/train \
+  --exp-dir /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_resnet50x2_viewmix \
   --arch resnet50x2 \
   --device cuda \
   --fp16 \
@@ -50,13 +51,8 @@ python main_vicregl.py \
   --min_scale_crops 0.08 \
   --max_scale_crops 1.0 \
   --alpha 0.75 \
-  --use-local-loss \
-  --local-loss-weight 0.25 \
-  --local-mlp 2048-1024 \
-  --use-viewmix \
-  --viewmix-alpha 1.0 \
-  --viewmix-prob 0.5 \
-  --log-freq-time 10
+  --log-tensors-interval 10
+  --use-wandb
 
 
 
