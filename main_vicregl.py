@@ -118,8 +118,13 @@ def get_arguments():
 
 def main(args):
     torch.backends.cudnn.benchmark = True
-    init_distributed_mode(args)
+    # init_distributed_mode(args)
     print(args)
+
+    args.distributed = False
+    args.rank = 0
+    args.world_size = 1
+
     gpu = torch.device(args.device)
     
     # Ensures that stats_file is initialized when calling evalaute(),
@@ -164,8 +169,10 @@ def main(args):
 
     model = VICRegL(args).cuda(gpu)
     print(model)
-    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
+    if getattr(args, "distributed", False) and args.world_size > 1:
+
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
 
     optimizer = build_optimizer(args, model)
 
@@ -187,7 +194,9 @@ def main(args):
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(start_epoch, args.epochs):
         model.train()
-        train_sampler.set_epoch(epoch)
+
+        if hasattr(train_sampler, "set_epoch"):
+            train_sampler.set_epoch(epoch)
         for step, inputs in enumerate(train_loader, start=epoch * len(train_loader)):
             lr = utils.learning_schedule(
                 global_step=step,
