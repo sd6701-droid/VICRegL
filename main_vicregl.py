@@ -634,9 +634,10 @@ def batched_index_select(input, dim, index):
 
 def neirest_neighbores(input_maps, candidate_maps, distances, num_matches):
     batch_size = input_maps.size(0)
+    spatial_dim = input_maps.size(1)   # H * W
 
-    if num_matches is None or num_matches == -1:
-        num_matches = input_maps.size(1)
+    if num_matches is None or num_matches == -1 or num_matches > spatial_dim:
+        num_matches = spatial_dim
 
     topk_values, topk_indices = distances.topk(k=1, largest=False)
     topk_values = topk_values.squeeze(-1)
