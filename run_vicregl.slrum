@@ -36,8 +36,8 @@ echo "========================================"
 cd /home/sd6701/test/VICRegL
 
 python main_vicregl.py \
-  --dataset /home/sd6701/datasets/fall2025_deeplearning/cc3m_96px_vicreg/train/class1 \
-  --exp-dir /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_resnet50x2_viewmix \
+  --dataset /home/sd6701/datasets/fall2025_deeplearning/cc3m_96px_vicreg_final_exp/train/class1 \
+  --exp-dir /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_resnet50x2 \
   --arch resnet50x2 \
   --device cuda \
   --fp16 \
@@ -53,6 +53,7 @@ python main_vicregl.py \
   --alpha 0.75 \
   --log-tensors-interval 10 \
   --use-wandb
+
 
 echo "========================================"
 echo "Finished at: $(date)"
