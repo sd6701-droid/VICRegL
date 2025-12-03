@@ -260,8 +260,8 @@ def main(args):
             if args.evaluate:
                 evaluate(model, logs, val_loader, args, epoch, lr, stats_file, gpu)
 
-        if wandb_run is not None and args.rank == 0:
-            wandb_run.finish()
+    if wandb_run is not None and args.rank == 0:
+        wandb_run.finish()
 
 
 def evaluate(model, logs, val_loader, args, epoch, lr, stats_file, gpu):
