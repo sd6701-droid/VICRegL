@@ -11,6 +11,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset
+import torch.distributed as dist   
 import torchvision.datasets as datasets
 
 from transforms import MultiCropTrainDataTransform, MultiCropValDataTransform
@@ -97,11 +98,24 @@ def build_loader(args, is_train=True):
     if (not is_train) and args.val_batch_size == -1:
         batch_size = args.batch_size
 
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=is_train)
-    per_device_batch_size = batch_size // args.world_size
+    # Use DistributedSampler only if torch.distributed is initialized
+    if dist.is_available() and dist.is_initialized():
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            shuffle=is_train,
+        )
+        per_device_batch_size = batch_size // args.world_size
+        shuffle = False
+    else:
+        # Single-process / non-distributed case
+        sampler = None
+        per_device_batch_size = batch_size
+        shuffle = is_train
+
     loader = torch.utils.data.DataLoader(
         dataset,
         sampler=sampler,
+        shuffle=shuffle,
         batch_size=per_device_batch_size,
         num_workers=args.num_workers,
     )

@@ -54,8 +54,6 @@ python main_vicregl.py \
   --log-tensors-interval 10
   --use-wandb
 
-
-
 echo "========================================"
 echo "Finished at: $(date)"
 echo "========================================"
