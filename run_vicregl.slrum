@@ -37,8 +37,8 @@ cd /home/sd6701/test/VICRegL
 
 python main_vicregl.py \
   --dataset /home/sd6701/datasets/fall2025_deeplearning/cc3m_96px_vicreg_final_exp/train/class1 \
-  --exp-dir /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_convnext_base \
-  --arch convnext_base \
+  --exp-dir /home/sd6701/fall2025_deeplearning/outputs/vicregl_cc3m_convnext_small \
+  --arch convnext_small \
   --device cuda \
   --fp16 \
   --epochs 30 \
