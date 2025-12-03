@@ -605,19 +605,38 @@ class VICRegL(nn.Module):
         # Online classification
 
         labels = inputs["labels"]
+
+        # Get num_classes from args
+        num_classes = getattr(self.args, "num_classes", None)
+        if num_classes is None:
+            raise ValueError("args.num_classes is not set but classifier is being used.")
+
+        # Safety check to catch bad labels before CUDA asserts
+        if labels.min() < 0 or labels.max() >= num_classes:
+            raise ValueError(
+                f"Label out of range! "
+                f"labels.min()={labels.min().item()}, "
+                f"labels.max()={labels.max().item()}, "
+                f"num_classes={num_classes}"
+            )
+
         classif_loss = F.cross_entropy(outputs["logits"][0], labels)
         acc1, acc5 = utils.accuracy(outputs["logits"][0], labels, topk=(1, 5))
         loss = loss + classif_loss
         logs.update(dict(cls_l=classif_loss, top1=acc1, top5=acc5, l=loss))
+
         if is_val:
             classif_loss_val = F.cross_entropy(outputs["logits_val"][0], labels)
             acc1_val, acc5_val = utils.accuracy(
                 outputs["logits_val"][0], labels, topk=(1, 5)
             )
             logs.update(
-                dict(clsl_val=classif_loss_val, top1_val=acc1_val, top5_val=acc5_val,)
+                dict(
+                    clsl_val=classif_loss_val,
+                    top1_val=acc1_val,
+                    top5_val=acc5_val,
+                )
             )
-
         return loss, logs
 
 
