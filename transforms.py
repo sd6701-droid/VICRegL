@@ -324,9 +324,14 @@ class MultiCropTrainDataTransform(object):
             for i, (crop, location) in enumerate(multi_crops_no_augs):
                 crop, is_flip = self.flip(crop)
                 multi_crops.append(self.augmentations[i](crop))
-                grid_size = 7
-                if i >= self.num_crops[0]:
-                    grid_size = 3
+                cumulative_crops = 0
+                current_crop_config_idx = 0
+                for idx, n_crops in enumerate(self.num_crops):
+                    cumulative_crops += n_crops
+                    if i < cumulative_crops:
+                        current_crop_config_idx = idx
+                        break
+                grid_size = self.size_crops[current_crop_config_idx] // 32
                 if self.no_flip_grid:
                     is_flip = False
                 locations.append(
