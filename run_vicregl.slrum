@@ -51,7 +51,7 @@ python main_vicregl.py \
   --min_scale_crops 0.08 \
   --max_scale_crops 1.0 \
   --alpha 0.75 \
-  --log-tensors-interval 10
+  --log-tensors-interval 10 \
   --use-wandb
 
 echo "========================================"

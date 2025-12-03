@@ -120,8 +120,10 @@ class RandomResizedCropWithLocation(torch.nn.Module):
             tuple: params (i, j, h, w) to be passed to ``crop`` for a random
                 sized crop.
         """
-        width, height = FT._get_image_size(img)
-        area = height * width
+        if hasattr(FT, "get_image_size"):
+            width, height = FT.get_image_size(img)
+        else:
+            width, height = FT._get_image_size(img)
 
         log_ratio = torch.log(torch.tensor(ratio))
         for _ in range(10):
